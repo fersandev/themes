@@ -8,6 +8,8 @@ use Illuminate\Filesystem\Filesystem;
 use Illuminate\Http\Response;
 use Illuminate\View\Factory as ViewFactory;
 use URL;
+use File;
+
 /* eleiva version */
 class Themes
 {
@@ -207,6 +209,25 @@ class Themes
 
 		return false;
 	}
+	
+	/**
+	 * Gets the given view file for indicated region.
+	 *
+	 * @param  string  $view
+	 * @param  string  $region
+	 * @return string|null
+	 */
+	public function getViewForRegion($view, $region) {
+		$activeTheme = $this->getActive();
+		$parent      = $this->getProperty($activeTheme.'::parent');
+		$subTheme = $activeTheme.'::childs.'.$region.'.'.$view;
+
+		if($this->viewFactory->exists($subTheme)) {
+			return $subTheme;
+		}
+
+		return false;
+	}
 
 	/**
 	 * Render theme view file.
@@ -224,7 +245,17 @@ class Themes
 			$data['theme_layout'] = $this->getLayout();
 		}
 
-		return $this->viewFactory->make($this->getView($view), $data);
+		if(!empty(session('region'))) {
+			$region = session('region');
+			$viewToDisplay = $this->getViewForRegion($view, $region);
+			if($viewToDisplay == false) {
+				$viewToDisplay = $this->getView($view);
+			}
+		}else {
+			$viewToDisplay = $this->getView($view);
+		}
+
+		return $this->viewFactory->make($viewToDisplay, $data);
 	}
 
 	/**
@@ -375,10 +406,31 @@ class Themes
 			$asset = $segments[0];
 		}
 
-		return url($this->config->get('themes.paths.base').'/'
-			.($theme ?: $this->getActive()).'/'
-			.$this->config->get('themes.paths.assets').'/'
-			.$asset);
+		if(!empty(session('region'))) {
+			$url = url($this->config->get('themes.paths.base').'/'
+					.($theme ?: $this->getActive()).'/'
+					.$this->config->get('themes.paths.assets').'/'
+					.'childs/'.session('region').'/'
+					.$asset);
+			$urlPath = $this->config->get('themes.paths.base').'/'
+					.($theme ?: $this->getActive()).'/'
+					.$this->config->get('themes.paths.assets').'/'
+					.'childs/'.session('region').'/'
+					.$asset;
+			if(File::exists($urlPath)) {
+				return $url;
+			}else {
+				return url($this->config->get('themes.paths.base').'/'
+					.($theme ?: $this->getActive()).'/'
+					.$this->config->get('themes.paths.assets').'/'
+					.$asset);
+			}
+		}else {
+			return url($this->config->get('themes.paths.base').'/'
+				.($theme ?: $this->getActive()).'/'
+				.$this->config->get('themes.paths.assets').'/'
+				.$asset);
+		}
 	}
 
 	public function trans($key,$locale = 'en', $substitute = []){
